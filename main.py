@@ -1,109 +1,96 @@
-# libraries
+# Libraries
+import glob
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
-import hashlib
 import os
+import sqlite3
+from auth import *
 
-# Google Drive Authentication
-gauth = GoogleAuth()
-# try to load saved client credentials :https://stackoverflow.com/questions/24419188/automating-pydrive-verification-process/24542604#24542604
-gauth.LoadCredentialsFile("token.json")
-# gauth.LocalWebserverAuth("token.json")
-if gauth.credentials is None:
-    print('No credentials found')
-    gauth.LocalWebserverAuth(port_numbers=[8080, 8090])
-elif gauth.access_token_expired:
-    print('Credentials have expired')
-    gauth.Refresh()
-else:
-    gauth.Authorize()
-drive = GoogleDrive(gauth)
-
-#  save credentials
-gauth.SaveCredentialsFile("token.json")
-
-#  md5 hash function
+drive = auth('token.json')
 
 
-def md5checksum(file_path):
-    if not os.path.isfile(file_path):
-        return None
-    with open(file_path, 'rb') as f:
-        md5 = hashlib.md5()
-        while True:
-            data = f.read(8192)
-            if not data:
-                break
-            md5.update(data)
-    return md5.hexdigest()
+# Database Connection
+conn = sqlite3.connect('database.db')
+c = conn.cursor()
 
-#  upload file to Google Drive
+# Create table if not exists
+sql_query = "CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id TEXT, file_name TEXT, file_path TEXT, file_size TEXT, file_type TEXT, file_date TEXT, is_uploaded TEXT DEFAULT 'false', local_path TEXT DEFAULT 'null')"
+c.execute(sql_query)
+conn.commit()
+
+# Upload files to Google Drive
 
 
 def upload_folder_to_drive(local_folder_path, drive_folder_id):
-    # Find the folder in Google Drive with the same name as the local folder
+    #  Find the folder in Google Drive with the same name as the local folder
     query = "trashed=false and mimeType='application/vnd.google-apps.folder' and title='{}'".format(
         os.path.basename(local_folder_path))
     folder_list = drive.ListFile({'q': query}).GetList()
-
     if len(folder_list) > 0:
-        # If the folder already exists in Google Drive, use the first result
         drive_folder = folder_list[0]
     else:
-        # If the folder does not exist, create it
+        # Folder already exists
         folder_metadata = {'title': os.path.basename(
             local_folder_path), 'mimeType': 'application/vnd.google-apps.folder', 'parents': [{'id': drive_folder_id}]}
         drive_folder = drive.CreateFile(folder_metadata)
         drive_folder.Upload()
 
-    # Upload files to the existing or newly created folder
+    # Upload files to Google Drive
     for file_name in os.listdir(local_folder_path):
         file_path = os.path.join(local_folder_path, file_name)
         if os.path.isfile(file_path):
-            # Check if the file already exists in the folder
-            query = "trashed=false and mimeType!='application/vnd.google-apps.folder' and title='{}' and parents in '{}'".format(
-                file_name, drive_folder['id'])
-            file_list = drive.ListFile({'q': query}).GetList()
-            file_exists = any(md5 == md5checksum(file_path)
-                              for md5 in (f['md5Checksum'] for f in file_list))
-
-            if not file_exists:
-                # If the file does not exist, upload it to the folder
+            # Check if file is_uploaded is true in database
+            sql_query = "SELECT * FROM files WHERE file_path = '{}'".format(
+                file_path)
+            c.execute(sql_query)
+            result = c.fetchone()
+            if result is None:
+                # Upload file to Google Drive
                 file_metadata = {'title': file_name,
                                  'parents': [{'id': drive_folder['id']}]}
-
-                drive_file = drive.CreateFile(file_metadata)
-                drive_file.SetContentFile(file_path)
-                drive_file.Upload()
-                print("File '{}' has been uploaded to Google Drive.".format(file_name))
-
-        elif os.path.isdir(file_path):
-            # Recursively upload subfolders and their contents
-            subfolder_id = create_or_get_folder(
-                drive, file_name, drive_folder['id'])
-            upload_folder_to_drive(file_path, subfolder_id)
-
-
-def create_or_get_folder(drive, folder_name, parent_folder_id):
-    # Check if the folder already exists
-    query = "trashed=false and mimeType='application/vnd.google-apps.folder' and title='{}' and parents in '{}'".format(
-        folder_name, parent_folder_id)
-    folder_list = drive.ListFile({'q': query}).GetList()
-
-    if len(folder_list) > 0:
-        # If the folder already exists in Google Drive, use the first result
-        drive_folder = folder_list[0]
-    else:
-        # If the folder does not exist, create it
-        folder_metadata = {'title': folder_name,
-                           'mimeType': 'application/vnd.google-apps.folder', 'parents': [{'id': parent_folder_id}]}
-        drive_folder = drive.CreateFile(folder_metadata)
-        drive_folder.Upload()
-
-    return drive_folder['id']
+                file = drive.CreateFile(file_metadata)
+                file.SetContentFile(file_path)
+                file.Upload()
+                # Insert file info to database
+                sql_query = "INSERT INTO files (file_id, file_name, file_path, file_size, file_type, file_date) VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(
+                    file['id'], file_name, file_path, file['fileSize'], file['mimeType'], file['createdDate'])
+                c.execute(sql_query)
+                conn.commit()
+                print('File {} uploaded to Google Drive in {} folder'.format(
+                    file_name, drive_folder['title']))
+            else:
+                print('File {} already uploaded to Google Drive'.format(file_name))
 
 
-__local_folder_path__ = r'<Path of  your  folder>'
-__drive_folder_id__ = '<ID of the folder in Google Drive>'
+# Upload folder to Google Drive
+upload_folder_to_drive('C:\\Users\\admin\\Desktop\\test',
+                       '1LpHr3p00TF9HczZ51g4ASFpu-zOqAjnY')
+"""
 
-upload_folder_to_drive(__local_folder_path__, __drive_folder_id__)
+# use glop to list all files and update local_path query with title
+# https://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
+for f in glob.glob('C:\\Users\\admin\\Desktop\\osu\\**.pdf', recursive=True):
+    if os.path.isfile(f):
+        # Check if file is_uploaded is true in database
+        sql_query = "SELECT * FROM files WHERE file_path = '{}'".format(
+            f)
+        c.execute(sql_query)
+        result = c.fetchone()
+        if result is None:
+            # Upload file to Google Drive
+            file_metadata = {'title': os.path.basename(f),
+                             'parents': [{'id': '1gwNCNGlpUf2DyufVAmTCrWRa-vAsltkd'}]}
+            file = drive.CreateFile(file_metadata)
+            file.SetContentFile(f)
+            file.Upload()
+            # Insert file info to database
+            sql_query = "INSERT INTO files (file_id, file_name, file_path, file_size, file_type, file_date, local_path) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
+                file['id'], os.path.basename(f), f, file['fileSize'], file['mimeType'], file['createdDate'], f)
+            c.execute(sql_query)
+            conn.commit()
+            print('File {} uploaded to Google Drive in {} folder'.format(
+                os.path.basename(f), 'osu'))
+        else:
+            print('File {} already uploaded to Google Drive'.format(
+                os.path.basename(f)))
+"""
