@@ -11,3 +11,7 @@ client_secrets.json
 
 # python stuff
 __pycache__
+
+
+# db
+*.db
