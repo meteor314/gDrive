@@ -1,0 +1,17 @@
+# vim stuff
+*.swp
+*.swo
+
+#  .vscode stuff
+.vscode/
+
+#  config files
+token.json
+client_secrets.json
+
+# python stuff
+__pycache__
+
+
+# db
+*.db
