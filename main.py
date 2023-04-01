@@ -9,13 +9,14 @@ from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 import asyncio
 import time
+
 # Connect to Google Drive API
 auth.Auth()
 folder_path = "C:\\Users\\admin\\Desktop\\test"
 
+# List_files function from list_files.py
 start_time = time.time()
-list_files(folder_path)
-print("--- %s seconds ---" % (time.time() - start_time))
+(list_files(folder_path))
 
 
 async def upload_file(service, folder_id, file_path, max_retries=3):
@@ -101,3 +102,5 @@ if __name__ == '__main__':
     local_path = folder_path  # Replace with your local path
     loop = asyncio.get_event_loop()
     loop.run_until_complete(upload_files_to_drive(local_path, folder_id))
+
+print("--- %s seconds ---" % (time.time() - start_time))

@@ -8,7 +8,7 @@ def list_files(folder_path):
     # Connect to SQLite database
     with sqlite3.connect('uploaded_files.db') as conn:
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS uploaded_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, local_path TEXT, is_uploaded INTEGER DEFAULT 0, updated_date TEXT, size INTEGER)")
+            "CREATE TABLE IF NOT EXISTS uploaded_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, local_path TEXT UNIQUE, is_uploaded INTEGER DEFAULT 0, updated_date TEXT, size INTEGER)")
 
         # Recursively get all file paths in the folder and its subfolders
         file_paths = [os.path.join(dirpath, filename) for dirpath, _, filenames in os.walk(
@@ -32,4 +32,4 @@ def list_files(folder_path):
         # Insert or update file data in database
         with conn:
             conn.executemany(
-                "INSERT OR REPLACE INTO uploaded_files (title, local_path, size, updated_date) VALUES (:title, :local_path, :size, :updated_date)", file_data)
+                "INSERT OR IGNORE INTO uploaded_files (title, local_path, size, updated_date) VALUES (:title, :local_path, :size, :updated_date)", file_data)
