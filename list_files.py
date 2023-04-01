@@ -1,38 +1,55 @@
-import glob
+# Libraries
 import os
+import glob
+import datetime
 import sqlite3
-# use glop to list all files and update local_path query with title
-# https://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
-
-# conn:<The returned Connection object con represents the connection to the on-disk database.>, drive:<pydrive>
 
 
-def list_file_recursively(conn, drive):
-    # In order to execute SQL statements and fetch results from SQL queries, we will need to use a database cursor. Call con.cursor() to create the Cursor:
+#  List all files in a directory and subdirectories recursively and and create a db with title, local_path, is_uploaded, updated_date, size of file
+def list_files(folder_path):
+    # Connect to SQLite database
+    conn = sqlite3.connect('uploaded_files.db')
     c = conn.cursor()
-    file_name = "test.pdf"
-    ext = file_name.split('.')[1].lower()
-    for f in glob.glob('C:\\Users\\admin\\Desktop\\**\\*.{}', recursive=True).format(ext):
-        if os.path.isfile(f):
-            # Check if file is_uploaded is true in database
-            sql_query = "SELECT * FROM files WHERE file_path = '{}'".format(
-                f)
-            c.execute(sql_query)
-            result = c.fetchone()
-            if result is None:
-                # Upload file to Google Drive
-                file_metadata = {'title': os.path.basename(f),
-                                 'parents': [{'id': '1gwNCNGlpUf2DyufVAmTCrWRa-vAsltkd'}]}
-                file = drive.CreateFile(file_metadata)
-                file.SetContentFile(f)
-                file.Upload()
-                # Insert file info to database
-                sql_query = "INSERT INTO files (file_id, file_name, file_path, file_size, file_type, file_date, local_path) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
-                    file['id'], os.path.basename(f), f, file['fileSize'], file['mimeType'], file['createdDate'], f)
-                c.execute(sql_query)
+
+    # Create table if not exists
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS uploaded_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, local_path TEXT, is_uploaded INTEGER DEFAULT 0, updated_date TEXT, size INTEGER)")
+
+    # Recursively get all file paths in the folder and its subfolders
+    file_paths = glob.glob(os.path.join(folder_path, '**'), recursive=True)
+    file_paths = [f for f in file_paths if os.path.isfile(f)]
+
+    # Upload files in batches
+    for i in range(0, len(file_paths)):
+        file_path = file_paths[i]
+        # Get the file title relative to the folder path
+        title = os.path.relpath(file_path, folder_path)
+        local_path = file_path
+        size = 0  # os.path.getsize(file_path)
+        updated_date = datetime.datetime.fromtimestamp(
+            os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Check if the file has already been uploaded
+        c.execute("SELECT id FROM uploaded_files WHERE title=?", (title,))
+        result = c.fetchone()
+
+        if result is None:
+            # Upload the file to Google Drive
+            try:
+                c.execute("INSERT INTO uploaded_files (title, local_path, updated_date, size) VALUES (?, ?, ?, ?)",
+                          (title, local_path, updated_date, size))
                 conn.commit()
-                print('File {} uploaded to Google Drive in {} folder'.format(
-                    os.path.basename(f), 'osu'))
+            except Exception as e:
+                print(e)
+        else:
+            c.execute(
+                "SELECT updated_date FROM uploaded_files WHERE title=?", (title,))
+            result = c.fetchone()
+            if result[0] != updated_date:
+                c.execute(
+                    "UPDATE uploaded_files SET updated_date = ? WHERE title = ?", (updated_date, title))
+                conn.commit()
             else:
-                print('File {} already uploaded to Google Drive'.format(
-                    os.path.basename(f)))
+                print("File is up to date")
+
+    conn.close()

@@ -1,96 +1,95 @@
 # Libraries
-import glob
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
-import os
 import sqlite3
-from auth import *
-
-drive = auth('token.json')
-
-
-# Database Connection
-conn = sqlite3.connect('database.db')
-c = conn.cursor()
-
-# Create table if not exists
-sql_query = "CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id TEXT, file_name TEXT, file_path TEXT, file_size TEXT, file_type TEXT, file_date TEXT, is_uploaded TEXT DEFAULT 'false', local_path TEXT DEFAULT 'null')"
-c.execute(sql_query)
-conn.commit()
-
-# Upload files to Google Drive
+import os
+import auth
+import auth as a
+from list_files import list_files
+import googleapiclient
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from google.oauth2.credentials import Credentials
+import datetime
 
 
-def upload_folder_to_drive(local_folder_path, drive_folder_id):
-    #  Find the folder in Google Drive with the same name as the local folder
-    query = "trashed=false and mimeType='application/vnd.google-apps.folder' and title='{}'".format(
-        os.path.basename(local_folder_path))
-    folder_list = drive.ListFile({'q': query}).GetList()
-    if len(folder_list) > 0:
-        drive_folder = folder_list[0]
-    else:
-        # Folder already exists
-        folder_metadata = {'title': os.path.basename(
-            local_folder_path), 'mimeType': 'application/vnd.google-apps.folder', 'parents': [{'id': drive_folder_id}]}
-        drive_folder = drive.CreateFile(folder_metadata)
-        drive_folder.Upload()
+token_expiry = None
 
-    # Upload files to Google Drive
-    for file_name in os.listdir(local_folder_path):
-        file_path = os.path.join(local_folder_path, file_name)
-        if os.path.isfile(file_path):
-            # Check if file is_uploaded is true in database
-            sql_query = "SELECT * FROM files WHERE file_path = '{}'".format(
-                file_path)
-            c.execute(sql_query)
-            result = c.fetchone()
-            if result is None:
-                # Upload file to Google Drive
-                file_metadata = {'title': file_name,
-                                 'parents': [{'id': drive_folder['id']}]}
-                file = drive.CreateFile(file_metadata)
-                file.SetContentFile(file_path)
-                file.Upload()
-                # Insert file info to database
-                sql_query = "INSERT INTO files (file_id, file_name, file_path, file_size, file_type, file_date) VALUES ('{}', '{}', '{}', '{}', '{}', '{}')".format(
-                    file['id'], file_name, file_path, file['fileSize'], file['mimeType'], file['createdDate'])
-                c.execute(sql_query)
-                conn.commit()
-                print('File {} uploaded to Google Drive in {} folder'.format(
-                    file_name, drive_folder['title']))
-            else:
-                print('File {} already uploaded to Google Drive'.format(file_name))
+# Authenticate with Google Drive API
+auth = a.Auth()
+token_expiry = auth.gauth.credentials.token_expiry
+
+# Start time
+start_time = datetime.datetime.now()
+
+# Define the folder path
+folder_path = "C:\\Users\\admin\\Desktop\\test"
+list_files(folder_path)
 
 
-# Upload folder to Google Drive
-upload_folder_to_drive('C:\\Users\\admin\\Desktop\\test',
-                       '1LpHr3p00TF9HczZ51g4ASFpu-zOqAjnY')
-"""
+# load the client secrets file
+client_secrets_file = os.path.join(
+    os.path.dirname(__file__), 'client_secrets.json')
 
-# use glop to list all files and update local_path query with title
-# https://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
-for f in glob.glob('C:\\Users\\admin\\Desktop\\osu\\**.pdf', recursive=True):
-    if os.path.isfile(f):
-        # Check if file is_uploaded is true in database
-        sql_query = "SELECT * FROM files WHERE file_path = '{}'".format(
-            f)
-        c.execute(sql_query)
-        result = c.fetchone()
-        if result is None:
-            # Upload file to Google Drive
-            file_metadata = {'title': os.path.basename(f),
-                             'parents': [{'id': '1gwNCNGlpUf2DyufVAmTCrWRa-vAsltkd'}]}
-            file = drive.CreateFile(file_metadata)
-            file.SetContentFile(f)
-            file.Upload()
-            # Insert file info to database
-            sql_query = "INSERT INTO files (file_id, file_name, file_path, file_size, file_type, file_date, local_path) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(
-                file['id'], os.path.basename(f), f, file['fileSize'], file['mimeType'], file['createdDate'], f)
-            c.execute(sql_query)
+
+creds_file = os.path.join(os.path.dirname(__file__), 'token.json')
+
+
+def upload_files_to_drive(folder_path, folder_id, batch_size=10):
+    print('Uploading files to Google Drive...')
+    creds = Credentials.from_authorized_user_file(
+        creds_file, scopes=['https://www.googleapis.com/auth/drive'])
+
+    # Create the Drive API client
+    service = build('drive', 'v3', credentials=creds)
+
+    # Connect to SQLite database
+    conn = sqlite3.connect('uploaded_files.db')
+    c = conn.cursor()
+
+    # Select all files from the database where is_uploaded is 0
+    file_paths = c.execute(
+        "SELECT local_path FROM uploaded_files WHERE is_uploaded=0").fetchall()
+
+    file_paths = [f[0] for f in file_paths]
+
+    # Upload files in batches
+    for i in range(0, len(file_paths), batch_size):
+
+        # Refresh the token if it has expired
+        if creds.expired:
+            auth.gauth.Refresh()
+            creds = Credentials.from_authorized_user_file(
+                creds_file, scopes=['https://www.googleapis.com/auth/drive'])
+            service = build('drive', 'v3', credentials=creds)
+
+        for j in range(i, i + batch_size):
+            if j >= len(file_paths):
+                break
+
+            file_path = file_paths[j]
+            # Get the file title relative to the folder path
+            title = os.path.relpath(file_path, folder_path)
+
+            # Create the file metadata
+            metadata = {
+                'name': title,
+                'parents': [folder_id]
+            }
+
+            # Upload the file
+            media = googleapiclient.http.MediaFileUpload(file_path)
+            service.files().create(
+                body=metadata, media_body=media, fields='id').execute()
+
+            # Update the database
+            c.execute(
+                "UPDATE uploaded_files SET is_uploaded=1 WHERE local_path=?", (file_path,))
             conn.commit()
-            print('File {} uploaded to Google Drive in {} folder'.format(
-                os.path.basename(f), 'osu'))
-        else:
-            print('File {} already uploaded to Google Drive'.format(
-                os.path.basename(f)))
-"""
+
+    conn.close()
+    print('Done')
+
+
+if __name__ == '__main__':
+    local_path = "C:\\Users\\admin\\Desktop\\test"  # Replace with your local path
+    folder_id = "14pwrQ42PpsqUbsBT0deJrTDsZaFk3VT8"  # Replace with your folder ID
+    upload_files_to_drive(local_path, folder_id)
