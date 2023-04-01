@@ -7,13 +7,15 @@ import googleapiclient
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
-import datetime
 import asyncio
-
+import time
 # Connect to Google Drive API
 auth.Auth()
+folder_path = "C:\\Users\\admin\\Desktop\\test"
 
-list_files("C:\\Users\\admin\\Desktop\\test")
+start_time = time.time()
+list_files(folder_path)
+print("--- %s seconds ---" % (time.time() - start_time))
 
 
 async def upload_file(service, folder_id, file_path, max_retries=3):
@@ -86,6 +88,7 @@ async def upload_files_to_drive(folder_path, folder_id, batch_size=10):
         # Update the database
         c.executemany(
             "UPDATE uploaded_files SET is_uploaded=1 WHERE local_path=?", [(file_path,) for file_path in file_paths[i:i+batch_size]])
+        print(f"Uploaded {i+batch_size} files")
         conn.commit()
 
     conn.close()
@@ -93,7 +96,8 @@ async def upload_files_to_drive(folder_path, folder_id, batch_size=10):
 
 
 if __name__ == '__main__':
-    folder_id = "14pwrQ42PpsqUbsBT0deJrTDsZaFk3VT8"  # Replace with your folder ID
-    local_path = "C:\\Users\\admin\\Desktop\\test"
+    folder_id = "1fdiRWzjq_A5Pq7JbsOSN-3Iu3wHfvAw8"  # Replace with your folder ID
+
+    local_path = folder_path  # Replace with your local path
     loop = asyncio.get_event_loop()
     loop.run_until_complete(upload_files_to_drive(local_path, folder_id))
