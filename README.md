@@ -59,6 +59,18 @@ To execute the script, run the following command:
 python main.py
 ```
 
+# How work the database :
+
+By default, **_is uploaded_** is set to 0 for all files. When the file is uploaded to Google Drive, the **_is_uploaded_** is set to 1. If a file is failed to upload, the **_\_is_uploaded_** is set to 2.
+
+You can track how many files are uploaded, failed to upload and not uploaded yet by running the tracking.py file.
+
+```bash
+python tracking.py
+```
+
+# How to schedule the script :
+
 And to schedule the script, follow the steps below:
 
 - Open the Windows Task Scheduler by searching for "Task Scheduler" in the Start menu.

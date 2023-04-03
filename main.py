@@ -41,12 +41,21 @@ async def upload_file(service, folder_id, file_path, max_retries=3):
         except HttpError as error:
             print(f"Error uploading {file_path}: {error}")
             print(f"Retrying ({i+1}/{max_retries})...")
+            # Set is_uploaded to 0 in the database if the upload failed
+
+            # Connect to SQLite database
+            conn = sqlite3.connect('uploaded_files.db')
+            c = conn.cursor()
+            c.execute(
+                "UPDATE uploaded_files SET is_uploaded=2 WHERE local_path=?", (file_path,))
+            conn.commit()
+            conn.close()
             await asyncio.sleep(1)  # Wait for 1 second before retrying
 
     print(f"Failed to upload {file_path} after {max_retries} retries.")
 
 
-async def upload_files_to_drive(folder_path, folder_id, batch_size=10):
+async def upload_files_to_drive(folder_path, folder_id, batch_size=1):
     print('Uploading files to Google Drive...')
     creds = Credentials.from_authorized_user_file(
         'token.json', scopes=['https://www.googleapis.com/auth/drive'])
@@ -65,8 +74,8 @@ async def upload_files_to_drive(folder_path, folder_id, batch_size=10):
     file_paths = [f[0] for f in file_paths]
 
     # Upload files in batches
+    uploaded_file_paths = []
     for i in range(0, len(file_paths), batch_size):
-
         # Refresh the token if it has expired
         if creds.expired:
             # Refresh the token with auth.py refresh_token()
@@ -75,29 +84,31 @@ async def upload_files_to_drive(folder_path, folder_id, batch_size=10):
             creds = Credentials.from_authorized_user_file(
                 'token.json', scopes=['https://www.googleapis.com/auth/drive'])
             service = build('drive', 'v3', credentials=creds)
-
         tasks = []
         for j in range(i, i + batch_size):
             if j >= len(file_paths):
                 break
 
             file_path = file_paths[j]
-            tasks.append(upload_file(service, folder_id, file_path))
+            try:
+                await upload_file(service, folder_id, file_path)
+                uploaded_file_paths.append(file_path)
+            except Exception as e:
+                print(f"Failed to upload {file_path}: {e}")
+                print(f"Skipping...")
+                continue
 
-        await asyncio.gather(*tasks)
-
-        # Update the database
+        # Update the database for only the successfully uploaded files in the batch if is_uploaded is 0
         c.executemany(
-            "UPDATE uploaded_files SET is_uploaded=1 WHERE local_path=?", [(file_path,) for file_path in file_paths[i:i+batch_size]])
-        print(f"Uploaded {i+batch_size} files")
+            "UPDATE uploaded_files SET is_uploaded=1 WHERE local_path=?  AND is_uploaded=0", [(file_path,) for file_path in uploaded_file_paths])
+        print(f"Uploaded {len(uploaded_file_paths)} files")
         conn.commit()
 
     conn.close()
     print('Done')
 
-
 if __name__ == '__main__':
-    folder_id = "1fdiRWzjq_A5Pq7JbsOSN-3Iu3wHfvAw8"  # Replace with your folder ID
+    folder_id = "1xSapr8SwZrS2DGInDQXL3kTY-M-w_x3x"  # Replace with your folder ID
 
     local_path = folder_path  # Replace with your local path
     loop = asyncio.get_event_loop()
