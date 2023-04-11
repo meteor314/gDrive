@@ -15,7 +15,8 @@ class Auth:
         if self.gauth.credentials is None:
             # Authenticate if they're not there
             print('No credentials found, please authenticate')
-            self.gauth.LocalWebserverAuth(port_numbers=[8080, 8090])
+            self.gauth.LocalWebserverAuth(
+                port_numbers=[8080, 8090], access_type='offline')
         elif self.gauth.access_token_expired:
             # Refresh them if expired
             print('Credentials have expired, refreshing')
@@ -29,6 +30,10 @@ class Auth:
 
     def refresh_token(self):
         self.gauth.LoadCredentialsFile("token.json")
-        self.gauth.Refresh()
+        try:
+            self.gauth.Refresh()
+        except Exception as e:
+            print("Refresh token has been revoked. Please re-authenticate.", e)
+            self.gauth.LocalWebserverAuth(port_numbers=[8080, 8090])
         self.gauth.SaveCredentialsFile("token.json")
         self.drive = GoogleDrive(self.gauth)

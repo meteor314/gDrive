@@ -1,117 +1,38 @@
-import sqlite3
-import os
-import auth
-from auth import Auth
-from list_files import list_files
-import googleapiclient
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials
-import asyncio
-import time
-
-# Connect to Google Drive API
-auth.Auth()
-folder_path = "C:\\Users\\admin\\Desktop\\test"
-
-# List_files function from list_files.py
-start_time = time.time()
-(list_files(folder_path))
+import configparser
+import folder_structure as fs
+import upload_files as uf
 
 
-async def upload_file(service, folder_id, file_path, max_retries=3):
-    # Get the file title relative to the folder path
-    title = os.path.basename(file_path)
-
-    # Create the file metadata
-    metadata = {
-        'name': title,
-        'parents': [folder_id]
-    }
-
-    # Upload the file
-    media = googleapiclient.http.MediaFileUpload(file_path)
-
-    # Try to upload the file with retries
-    for i in range(max_retries):
-        try:
-            service.files().create(
-                body=metadata, media_body=media, fields='id').execute()
-            return
-        except HttpError as error:
-            print(f"Error uploading {file_path}: {error}")
-            print(f"Retrying ({i+1}/{max_retries})...")
-            # Set is_uploaded to 0 in the database if the upload failed
-
-            # Connect to SQLite database
-            conn = sqlite3.connect('uploaded_files.db')
-            c = conn.cursor()
-            c.execute(
-                "UPDATE uploaded_files SET is_uploaded=2 WHERE local_path=?", (file_path,))
-            conn.commit()
-            conn.close()
-            await asyncio.sleep(1)  # Wait for 1 second before retrying
-
-    print(f"Failed to upload {file_path} after {max_retries} retries.")
+# Config file
+config = configparser.ConfigParser()
+config.read('config.ini')
+isRunning = config['RUN']['IS_RUNNING']
 
 
-async def upload_files_to_drive(folder_path, folder_id, batch_size=1):
-    print('Uploading files to Google Drive...')
-    creds = Credentials.from_authorized_user_file(
-        'token.json', scopes=['https://www.googleapis.com/auth/drive'])
+def main():
+    # Create a folder structure in Google Drive
+    fs.insert_folders_with_paths_recursively_to_db(
+        fs.folder_path, 'folders.db')
+    fs.create_folder_structure_in_gdrive('folders.db', fs.drive_folder_id)
 
-    # Create the Drive API client
-    service = build('drive', 'v3', credentials=creds)
+    # List all files in the folder structure
+    uf.list_files()
+    # Upload files to Google Drive
+    uf.upload_files()
+    # Export the database to a csv file
+    uf.export_to_csv()
 
-    # Connect to SQLite database
-    conn = sqlite3.connect('uploaded_files.db')
-    c = conn.cursor()
 
-    # Select all files from the database where is_uploaded is 0
-    file_paths = c.execute(
-        "SELECT local_path FROM uploaded_files WHERE is_uploaded=0").fetchall()
-
-    file_paths = [f[0] for f in file_paths]
-
-    # Upload files in batches
-    uploaded_file_paths = []
-    for i in range(0, len(file_paths), batch_size):
-        # Refresh the token if it has expired
-        if creds.expired:
-            # Refresh the token with auth.py refresh_token()
-            print('Token expired')
-            auth.Auth().refresh_token()
-            creds = Credentials.from_authorized_user_file(
-                'token.json', scopes=['https://www.googleapis.com/auth/drive'])
-            service = build('drive', 'v3', credentials=creds)
-        tasks = []
-        for j in range(i, i + batch_size):
-            if j >= len(file_paths):
-                break
-
-            file_path = file_paths[j]
-            try:
-                await upload_file(service, folder_id, file_path)
-                uploaded_file_paths.append(file_path)
-            except Exception as e:
-                print(f"Failed to upload {file_path}: {e}")
-                print(f"Skipping...")
-                continue
-
-        # Update the database for only the successfully uploaded files in the batch if is_uploaded is 0
-        c.executemany(
-            "UPDATE uploaded_files SET is_uploaded=1 WHERE local_path=?  AND is_uploaded=0", [(file_path,) for file_path in uploaded_file_paths])
-        print(f"Uploaded {len(uploaded_file_paths)} files")
-        conn.commit()
-
-    conn.close()
-    print('Done')
-
-if __name__ == '__main__':
-    folder_id = "1xSapr8SwZrS2DGInDQXL3kTY-M-w_x3x"  # Replace with your folder ID
-
-    local_path = folder_path  # Replace with your local path
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(upload_files_to_drive(local_path, folder_id))
-
-print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == "__main__":
+    # If an error occurs, make sure to set isRunning to 1 in config.ini
+    try:
+        main()
+    except Exception as e:
+        print(e)
+        config['RUN']['IS_RUNNING'] = '1'
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+    else:
+        config['RUN']['IS_RUNNING'] = '0'
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)

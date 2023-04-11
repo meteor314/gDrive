@@ -35,12 +35,17 @@ Here is the structure of my working directory:
 
 In the **_main.py_** file, replace the **_local_folder_path_** and **_drive_folder_id_** with your own values.
 
-```python
-# Path: main.py
+### Example of content of config.ini file
 
-folder_path =  '<Path of  your  folder>'
-drive_folder_id = '<ID of the folder in Google Drive>'
-
+```bash
+[FOLDER]
+LOCAL_FOLDER_PATH =  C:\Users\admin\Downloads\test
+DRIVE_FOLDER_ID = 1vN*****-**********
+[CONFIG]
+DATA_BASE=database.db
+RUNNING=0
+[LOG]
+LOG_FILE=logs.log
 ```
 
 # Installation
