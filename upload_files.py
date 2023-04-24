@@ -77,7 +77,14 @@ def get_parent_folder_id(conn, abs_path):
     print(parent_folder_path)
     c.execute(
         "SELECT g_drive_id FROM folders WHERE abs_path = ?", (parent_folder_path,))
-    parent_folder_id = c.fetchone()[0]
+
+    result = c.fetchone()
+    if result is None:
+        print("result is None")
+        parent_folder_id = drive_folder_id
+    else:
+        print("result", result)
+        parent_folder_id = result[0]
     conn.close()
     return parent_folder_id
 
@@ -98,6 +105,7 @@ def upload_files():
     files = c.fetchall()
     for file in files:
         parent_folder_id = get_parent_folder_id('folders.db', file[2])
+        print("parent_folder_id", parent_folder_id)
         # Upload the file
         file_metadata = {
             'name': file[1],
@@ -191,12 +199,10 @@ def get_md5(path):
     return md5.hexdigest()
 
 
-check_integrity()
-"""
+# check_integrity()
 if __name__ == "__main__":
     list_files()
     upload_files()
     # export_to_csv()
     # import_table_from_csv('folders.db', 'logs\\files.csv')
     # delete_files_table('folders.db')
-"""

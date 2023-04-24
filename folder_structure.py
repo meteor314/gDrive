@@ -74,7 +74,6 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
 
     # Create the same folder structure in gdrive
     folder_ids = {folder_path: drive_folder_id}
-    retries = 0
     for row in rows:
         print("abs_path: ", row[1])
         folder_name = os.path.basename(row[1])
@@ -103,26 +102,25 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
         if len(folder_list) > 0:
             # Folder already exists in Google Drive
             drive_folder_id = folder_list[0]['id']
-            continue
+
         else:
             folder_metadata = {
                 'name': folder_name,
                 'mimeType': 'application/vnd.google-apps.folder',
                 'parents': [parent_folder_id]
             }
-            folder = service.files().create(body=folder_metadata, fields='id').execute()
+            folder = service.files().create(body=folder_metadata, fields='id, name').execute()
             print('Created folder: %s' % folder.get('name'), folder.get('id'))
             drive_folder_id = folder.get('id')
             # Add the folder id to the dictionary
             folder_ids[row[1]] = drive_folder_id
-            c.execute("UPDATE folders SET g_drive_id = ? WHERE abs_path = ?",
-                      (drive_folder_id, row[1]))
-            conn.commit()
+            print(row[1])
+        c.execute("UPDATE folders SET g_drive_id = ? WHERE abs_path = ?",
+                  (drive_folder_id, row[1]))
+        conn.commit()
 
 
-"""
 folder_path
 db_file_path = "folders.db"
 insert_folders_with_paths_recursively_to_db(folder_path, db_file_path)
 create_folder_structure_in_gdrive(db_file_path, drive_folder_id)
-"""
