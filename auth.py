@@ -16,7 +16,7 @@ class Auth:
             # Authenticate if they're not there
             print('No credentials found, please authenticate')
             self.gauth.LocalWebserverAuth(
-                port_numbers=[8080, 8090], access_type='offline')
+                port_numbers=[8080, 8090])
         elif self.gauth.access_token_expired:
             # Refresh them if expired
             print('Credentials have expired, refreshing')
