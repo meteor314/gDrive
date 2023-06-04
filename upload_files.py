@@ -16,7 +16,7 @@ config.read('config.ini')
 # get the path of the folder to be backed up
 folder_path = config['FOLDER']['LOCAL_FOLDER_PATH']
 drive_folder_id = config['FOLDER']['DRIVE_FOLDER_ID']
-
+is_share_drive = config['FOLDER']['IS_SHARE_DRIVE']
 # Authenticate with Google Drive
 
 
@@ -74,16 +74,13 @@ def get_parent_folder_id(conn, abs_path):
     conn = sqlite3.connect(conn)
     c = conn.cursor()
     parent_folder_path = os.path.dirname(abs_path)
-    print(parent_folder_path)
     c.execute(
         "SELECT g_drive_id FROM folders WHERE abs_path = ?", (parent_folder_path,))
 
     result = c.fetchone()
     if result is None:
-        print("result is None")
         parent_folder_id = drive_folder_id
     else:
-        print("result", result)
         parent_folder_id = result[0]
     conn.close()
     return parent_folder_id
@@ -105,7 +102,6 @@ def upload_files():
     files = c.fetchall()
     for file in files:
         parent_folder_id = get_parent_folder_id('folders.db', file[2])
-        print("parent_folder_id", parent_folder_id)
         # Upload the file
         file_metadata = {
             'name': file[1],
@@ -113,8 +109,8 @@ def upload_files():
         }
         media = MediaFileUpload(file[2], resumable=True)
         uploaded_file = drive.files().create(
-            body=file_metadata, media_body=media, fields='id').execute()
-        print('File ID: %s' % uploaded_file.get('id'))
+            body=file_metadata, media_body=media, fields='id', supportsAllDrives=is_share_drive
+        ).execute()
         # Update the database
         c.execute("UPDATE files SET is_uploaded = 1, file_id = ? WHERE id = ?",
                   (uploaded_file.get('id'), file[0]))
@@ -181,7 +177,6 @@ def check_integrity():
     for file in files.get('files', []):
         g_drive_folder_md5.update(file.get('md5Checksum').encode('utf-8'))
     g_drive_folder_md5 = g_drive_folder_md5.hexdigest()
-    print(g_drive_folder_md5)
 
     if local_folder_md5 == g_drive_folder_md5:
         print('Integrity check passed :)')

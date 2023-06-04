@@ -30,7 +30,8 @@ Here is the structure of my working directory:
 |-- client_secrets.json
 |-- main.py
 |-- schedule.py
-`-- token.json
+|-- token.json
+|-- config.ini
 ```
 
 In the **_main.py_** file, replace the **_local_folder_path_** and **_drive_folder_id_** with your own values.
@@ -41,6 +42,7 @@ In the **_main.py_** file, replace the **_local_folder_path_** and **_drive_fold
 [FOLDER]
 LOCAL_FOLDER_PATH =  C:\Users\admin\Downloads\test
 DRIVE_FOLDER_ID = 1vN*****-**********
+IS_SHARE_DRTIVE  = True # True or False
 [CONFIG]
 DATA_BASE=database.db
 RUNNING=0

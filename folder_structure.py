@@ -15,6 +15,7 @@ config.read('config.ini')
 # get the path of the folder to be backed up
 folder_path = config['FOLDER']['LOCAL_FOLDER_PATH']
 drive_folder_id = config['FOLDER']['DRIVE_FOLDER_ID']
+is_share_drive = config['FOLDER']['IS_SHARE_DRIVE']
 
 
 def connect_to_drive():
@@ -75,11 +76,8 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
     # Create the same folder structure in gdrive
     folder_ids = {folder_path: drive_folder_id}
     for row in rows:
-        print("abs_path: ", row[1])
         folder_name = os.path.basename(row[1])
         parent_folder_path = os.path.dirname(row[1])
-        print("parent_folder_path: ", parent_folder_path)
-        print("folder_name: ", folder_name)
 
         # Find the parent folder id
         try:
@@ -109,7 +107,13 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
                 'mimeType': 'application/vnd.google-apps.folder',
                 'parents': [parent_folder_id]
             }
-            folder = service.files().create(body=folder_metadata, fields='id, name').execute()
+            if is_share_drive == 'True':
+                folder_metadata['driveId'] = drive_folder_id
+                folder_metadata['parents'] = [drive_folder_id]
+
+            folder = service.files().create(body=folder_metadata, fields='id, name',
+                                            supportsAllDrives=is_share_drive).execute()
+
             print('Created folder: %s' % folder.get('name'), folder.get('id'))
             drive_folder_id = folder.get('id')
             # Add the folder id to the dictionary

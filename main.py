@@ -20,7 +20,7 @@ def main():
     # Upload files to Google Drive
     uf.upload_files()
     # Export the database to a csv file
-    uf.export_to_csv()
+    # uf.export_to_csv()
 
 
 if __name__ == "__main__":
