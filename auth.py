@@ -2,6 +2,7 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 import os
 # Authenticate with Google Drive API :  https://stackoverflow.com/questions/24419188/automating-pydrive-verification-process/24542604#24542604
+# For service account : https://stackoverflow.com/questions/60736955/how-to-connect-pydrive-with-an-service-account
 
 
 class Auth:

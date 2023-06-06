@@ -68,12 +68,11 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
         print("All folders are already created in Google Drive")
         return
 
-    # Connect to Google Drive API
     creds = Credentials.from_authorized_user_file(
         'token.json', ['https://www.googleapis.com/auth/drive'])
     service = build('drive', 'v3', credentials=creds)
 
-    # Create the same folder structure in gdrive
+    # by default the root folder id is the drive_folder_id
     folder_ids = {folder_path: drive_folder_id}
     for row in rows:
         folder_name = os.path.basename(row[1])
@@ -96,7 +95,6 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
         # Find the folder in google drive with the same name as local folder
         folder_query = f"mimeType='application/vnd.google-apps.folder' and trashed=false and name='{folder_name}' and '{parent_folder_id}' in parents"
         folder_list = service.files().list(q=folder_query).execute().get('files', [])
-        print("folder_list: ", folder_list)
         if len(folder_list) > 0:
             # Folder already exists in Google Drive
             drive_folder_id = folder_list[0]['id']
@@ -109,7 +107,7 @@ def create_folder_structure_in_gdrive(db_file_path, drive_folder_id):
             }
             if is_share_drive == 'True':
                 folder_metadata['driveId'] = drive_folder_id
-                folder_metadata['parents'] = [drive_folder_id]
+                folder_metadata['parents'] = [parent_folder_id]
 
             folder = service.files().create(body=folder_metadata, fields='id, name',
                                             supportsAllDrives=is_share_drive).execute()

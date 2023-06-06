@@ -40,14 +40,15 @@ In the **_main.py_** file, replace the **_local_folder_path_** and **_drive_fold
 
 ```bash
 [FOLDER]
-LOCAL_FOLDER_PATH =  C:\Users\admin\Downloads\test
-DRIVE_FOLDER_ID = 1vN*****-**********
-IS_SHARE_DRTIVE  = True # True or False
+LOCAL_FOLDER_PATH  = C:\Users\admin\Desktop\test
+DRIVE_FOLDER_ID =0AL9R7YLLZyi_Uk9PVA
+IS_SHARE_DRIVE = True
 [CONFIG]
-DATA_BASE=database.db
-RUNNING=0
+DATA_BASE = database.db
+[RUN]
+IS_RUNNING = 0
 [LOG]
-LOG_FILE=logs.log
+LOG_FILE = logs.log
 ```
 
 # Installation
