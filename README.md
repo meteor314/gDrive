@@ -73,9 +73,8 @@ By default, **_is uploaded_** is set to 0 for all files. When the file is upload
 
 You can track how many files are uploaded, failed to upload and not uploaded yet by running the tracking.py file.
 
-```bash
-python tracking.py
-```
+For the databse, I used SQLite. You can find the database file in the working directory **_database.db_**. If a file is uploaded, the **_is_uploaded_** is set to 1. If a file is not uploaded yet, the **_is_uploaded_** is set to 0.
+Please use an extension to export the database file to a CSV file. You can use [DB Browser for SQLite](https://sqlitebrowser.org/).
 
 # How to schedule the script :
 
