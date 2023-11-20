@@ -1,0 +1,25 @@
+# vim stuff
+*.swp
+*.swo
+
+# VS Code stuff
+.vscode/
+.idea/
+
+# config files
+config.json
+*.json
+config.ini
+*.csv
+*.db
+
+# PyCharm stuff
+.idea/
+
+# Python stuff
+*.pyc
+__pycache__/
+.venv/
+
+
+aws.js
