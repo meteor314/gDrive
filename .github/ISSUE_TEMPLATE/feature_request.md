@@ -1,8 +1,8 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: Feature request
-labels: good first issue
+title: 'Issue '
+labels: good first issue, help wanted
 assignees: meteor314
 
 ---
